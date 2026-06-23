@@ -185,6 +185,7 @@ export class Server {
         await server.connect(transport);
 
         reply.raw.write(':\n\n');
+        reply.hijack();
       } catch (error) {
         if (!reply.sent) {
           reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
