@@ -113,23 +113,34 @@ export function patchRawResponseForImageUrls(
     if (typeof chunk === 'string') {
       return absolutizeImageUrls(chunk, hostHeader);
     }
-    if (Buffer.isBuffer(chunk)) {
-      const text = chunk.toString('utf8');
+    // The MCP transport writes plain Uint8Array, not Buffer, so check the
+    // wider type - Buffer.isBuffer() alone would let those chunks through.
+    if (chunk instanceof Uint8Array) {
+      const text = Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('utf8');
       const rewritten = absolutizeImageUrls(text, hostHeader);
       return rewritten === text ? chunk : Buffer.from(rewritten, 'utf8');
     }
     return chunk;
   };
 
+  // Headers can also be flushed implicitly by write()/end() without ever going
+  // through writeHead(), so drop Content-Length there too - a stale one would
+  // truncate the lengthened body and the client would see a parse error.
+  const dropContentLength = (): void => {
+    if (!raw.headersSent) raw.removeHeader('Content-Length');
+  };
+
   const originalWrite = raw.write.bind(raw);
   const originalEnd = raw.end.bind(raw);
 
   raw.write = function patchedWrite(chunk: any, ...rest: any[]): boolean {
+    dropContentLength();
     return originalWrite(rewrite(chunk) as any, ...rest);
   } as typeof raw.write;
 
   raw.end = function patchedEnd(chunk?: any, ...rest: any[]): any {
-    if (typeof chunk === 'string' || Buffer.isBuffer(chunk)) {
+    dropContentLength();
+    if (typeof chunk === 'string' || chunk instanceof Uint8Array) {
       return originalEnd(rewrite(chunk) as any, ...rest);
     }
     return originalEnd(chunk, ...rest);
