@@ -480,7 +480,7 @@ export const TOOL_SCHEMAS: Tool[] = [
         savePng: {
           type: 'boolean',
           description:
-            'Save screenshot as PNG file (default: true)，if you want to see the page, recommend set this to be false, and set storeBase64 to be true',
+            'Save screenshot as PNG file (default: true)，if you want to see the page, recommend set this to be false, and set storeBase64 to be true. The response includes imageUrl, an authenticated HTTP URL you can fetch to read the image; use it instead of fullPath, which is a path on the browser machine and is unreadable when the client runs elsewhere.',
         },
       },
       required: [],

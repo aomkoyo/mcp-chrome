@@ -102,6 +102,39 @@ function assertValidPageDetails(details: unknown): ScreenshotPageDetails {
   return candidate as ScreenshotPageDetails;
 }
 
+const DEFAULT_NATIVE_SERVER_PORT = 12306;
+
+/**
+ * Upload a screenshot to the native server so clients on other machines can
+ * fetch it over HTTP instead of receiving an unreadable local file path.
+ * Returns the relative URL, or null if the upload failed.
+ */
+async function uploadImageToServer(dataUrl: string): Promise<string | null> {
+  try {
+    const match = /^data:(image\/[^;]+);base64,(.*)$/s.exec(dataUrl);
+    if (!match) return null;
+    const [, contentType, base64Data] = match;
+
+    const stored = await chrome.storage.local.get(['nativeServerPort']);
+    const portRaw = Number(stored.nativeServerPort);
+    const port = Number.isFinite(portRaw) && portRaw > 0 ? portRaw : DEFAULT_NATIVE_SERVER_PORT;
+
+    const response = await fetch(`http://127.0.0.1:${port}/images`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Data, contentType }),
+    });
+    if (!response.ok) return null;
+
+    const { id, key } = (await response.json()) as { id?: string; key?: string };
+    if (!id || !key) return null;
+    return `/images/${id}?key=${encodeURIComponent(key)}`;
+  } catch (error) {
+    console.warn('Failed to upload screenshot to native server:', error);
+    return null;
+  }
+}
+
 /**
  * Tool for capturing screenshots of web pages
  */
@@ -304,6 +337,13 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       }
 
       if (savePng === true) {
+        // Serve the image over HTTP too - `fullPath` below is a local path
+        // that a client running on another machine cannot read.
+        const imageUrl = await uploadImageToServer(finalImageDataUrl);
+        if (imageUrl) {
+          results.imageUrl = imageUrl;
+        }
+
         // Save PNG file to downloads
         this.logInfo('Saving PNG...');
         try {

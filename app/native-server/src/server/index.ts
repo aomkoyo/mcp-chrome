@@ -28,7 +28,8 @@ import { AgentChatService } from '../agent/chat-service';
 import { CodexEngine } from '../agent/engines/codex';
 import { ClaudeEngine } from '../agent/engines/claude';
 import { closeDb } from '../agent/db';
-import { registerAgentRoutes } from './routes';
+import { registerAgentRoutes, registerImageRoutes } from './routes';
+import { patchRawResponseForImageUrls } from './routes/images';
 
 // ============================================================
 // Types
@@ -100,6 +101,9 @@ export class Server {
       chatService: this.agentChatService,
     });
 
+    // Image routes (screenshots reachable over HTTP for remote clients)
+    registerImageRoutes(this.fastify);
+
     // MCP routes
     this.setupMcpRoutes();
   }
@@ -166,8 +170,9 @@ export class Server {
 
   private setupMcpRoutes(): void {
     // SSE endpoint
-    this.fastify.get('/sse', async (_, reply) => {
+    this.fastify.get('/sse', async (request, reply) => {
       try {
+        patchRawResponseForImageUrls(reply.raw, request.headers.host);
         reply.raw.writeHead(HTTP_STATUS.OK, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -202,6 +207,7 @@ export class Server {
           return;
         }
 
+        patchRawResponseForImageUrls(reply.raw, req.headers.host);
         await transport.handlePostMessage(req.raw, reply.raw, req.body);
       } catch (error) {
         if (!reply.sent) {
@@ -242,6 +248,7 @@ export class Server {
       }
 
       try {
+        patchRawResponseForImageUrls(reply.raw, request.headers.host);
         await transport.handleRequest(request.raw, reply.raw, request.body);
       } catch (error) {
         if (!reply.sent) {
@@ -264,6 +271,7 @@ export class Server {
         return;
       }
 
+      patchRawResponseForImageUrls(reply.raw, request.headers.host);
       reply.raw.setHeader('Content-Type', 'text/event-stream');
       reply.raw.setHeader('Cache-Control', 'no-cache');
       reply.raw.setHeader('Connection', 'keep-alive');
