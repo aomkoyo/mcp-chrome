@@ -19,12 +19,30 @@ export const TIMEOUTS = {
 
 // Server configuration
 export const SERVER_CONFIG = {
-  HOST: '127.0.0.1',
+  HOST: '0.0.0.0',
   /**
-   * CORS origin whitelist - only allow Chrome/Firefox extensions and local debugging.
-   * Use RegExp patterns for extension origins, string for exact match.
+   * Address clients (agents, MCP config) should dial. The listen address is
+   * 0.0.0.0 (all interfaces), which is not a valid destination to connect to.
    */
-  CORS_ORIGIN: [/^chrome-extension:\/\//, /^moz-extension:\/\//, 'http://127.0.0.1'] as const,
+  CLIENT_HOST: '127.0.0.1',
+  /**
+   * CORS origin whitelist - allows Chrome/Firefox extensions, local debugging,
+   * and private-LAN origins (the server listens on 0.0.0.0).
+   * Use RegExp patterns for prefix/pattern matching, string for startsWith match.
+   */
+  CORS_ORIGIN: [
+    /^chrome-extension:\/\//,
+    /^moz-extension:\/\//,
+    'http://127.0.0.1',
+    'http://localhost',
+    // ponytail: private IPv4 ranges only (RFC1918 + link-local), any port.
+    /^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+    /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+    /^https?:\/\/172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+    /^https?:\/\/169\.254\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+    // Tailscale CGNAT range 100.64.0.0/10
+    /^https?:\/\/100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  ] as const,
   LOGGER_ENABLED: false,
 } as const;
 
@@ -78,5 +96,5 @@ export function getChromeMcpPort(): number {
  * This URL is used by Claude/Codex agents to connect to the MCP server.
  */
 export function getChromeMcpUrl(): string {
-  return `http://${SERVER_CONFIG.HOST}:${getChromeMcpPort()}/mcp`;
+  return `http://${SERVER_CONFIG.CLIENT_HOST}:${getChromeMcpPort()}/mcp`;
 }
